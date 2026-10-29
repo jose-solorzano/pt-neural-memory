@@ -672,11 +672,13 @@ something to work with.
 
 The addressed memory makes the same point from the opposite direction. It has
 no parameter budget to protect: its state is the pairs themselves, and a later
-part can only add cells. Its BWT is zero because there is nothing to overwrite,
-and its ACC lands within 0.02 of joint training because every pair is still
-available at read time. That is replay's argument taken to its limit — the
-missing constraint is supplied directly — and it prices the alternative: to
-reach 0.95 without gradient training you spend 60 MiB and keep every pair.
+part adds cells or adds constraints to cells that already hold writers. Its BWT
+is near zero because those old constraints remain in each cell's joint fit, not
+because a shared weight is protected, and its ACC lands within 0.02 of joint
+training because every pair is still available at read time. That is replay's
+argument taken to its limit — the missing constraint is supplied directly — and
+it prices the alternative: to reach 0.95 without gradient training you spend
+60 MiB and keep every pair.
 
 ## 6. What was already out there
 

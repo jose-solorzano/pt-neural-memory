@@ -333,17 +333,36 @@ s(c) = qᵀ P_c q.
 
 ### Why there is no catastrophic forgetting
 
-There is no shared parameter vector to overwrite. A later write either trains a
-cell that already holds constraints (making it a better joint least-squares fit
-of all its writers) or trains a cell that was empty. The state is the set of
-stored associations, encoded as local maps; recall is a lookup, not a forward
-pass through weights that have since changed.
+The mechanism is two things, not one: **local addressing** and **non-destructive
+local updates**.
 
-The qualification is capacity. With too few addresses, later writers can crowd
-a cell and move its local fit; that is capacity exhaustion, not overwriting.
-The direct-memory row in the table above shows it: a 6-bit address space is too
-small for the ten-part stream, and its BWT is −0.096 even though no weight
-vector is shared.
+A store only touches the key's cell and its one-bit neighbours — 39 cells per
+pair at the default settings — not a shared global parameter. With enough address
+bits, different parts mostly write different cells, and the random feature map is
+frozen, so there is no shared representation drifting underneath. The
+[address-width sweep](https://github.com/jose-solorzano/pt-neural-memory/blob/main/docs/FORGETTING.md#44-the-addressed-memory)
+in the forgetting report makes this half visible: BWT is −0.217 with 2 cells per
+block (5,120 writers per cell), −0.006 with 1,024 cells (55 writers), and −0.001
+with 4,096 cells (16 writers).
+
+But address locality alone would not be enough. Once a cell is touched, its whole
+local map changes; what keeps the old association is that the update is the exact
+Kalman/RLS posterior over *all* pairs written to the cell. Old pairs remain in the
+normal equations, the new pair is added as another constraint, and the map is
+refit jointly rather than overwritten. Even at 2 cells per block, where every
+pair collides, BWT is −0.217 rather than the −2.1 of naive fine-tuning: the joint
+fit retains as much as the occupancy allows.
+
+That is why this is not EWC-style parameter isolation: there are no importance
+weights, gradient masks, or per-task subnets. It is local in address space, and
+non-destructive inside each cell.
+
+The qualification is capacity. Once writers per cell exceed what the key
+dimension can interpolate, even the joint fit cannot satisfy every constraint,
+and old recall degrades. The direct raw 6-D memory in the table above shows it:
+a 6-bit address space is too small for the ten-part stream, and its BWT is −0.096
+even though no weight vector is shared. That is capacity exhaustion, not
+overwriting.
 
 That is also the honest caveat: the memory keeps the data in compressed form.
 It is a **ceiling check** for continual learning — what does a model that
