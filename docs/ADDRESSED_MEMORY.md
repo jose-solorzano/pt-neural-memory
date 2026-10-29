@@ -81,7 +81,10 @@ the cheapest way to route a key to a table row: one projection, `m` sign tests.
 
 A cell is an `RLSMemCell`, unchanged: model `v = W k + noise`, prior
 `W ~ N(0, I/λ)`, posterior `P = (λI + Σ k kᵀ)⁻¹` and `W = P Σ k vᵀ`. `store`
-applies the exact Gaussian update, `forward` returns `W k`.
+applies the exact Gaussian update, `forward` returns `W k`. This is the Kalman
+filter for that linear-Gaussian model: `P` is the error covariance and each
+`store` is a measurement update. The table is therefore a bank of independent
+Kalman filters, one per address.
 
 `RLSCellBank` is the table. It holds the two buffers `weights` `(cells, d_v, d)`
 and `covariance` `(cells, d, d)` and nothing else — no counts, no key or value
@@ -543,7 +546,7 @@ hold more than `0.75 d` associations is more addressed cells.
 ## Reproduce
 
 ```bash
-python -m pytest -q tests            # 115 tests: cell, bank, memory, regressor, sizing
+python -m pytest -q tests            # 116 tests: cell, bank, memory, regressor, sizing
 python -m pt_neural_memory.benchmarks.addressed_bench # §3.1-3.4, §3.6 + results/addressed_bench.json
 python -m pt_neural_memory.benchmarks.scaling_bench   # §3.2, §3.5 + results/scaling_bench.json
 python -m pt_neural_memory.benchmarks.balance_bench   # §5 error law and budget split + results/balance_bench.json

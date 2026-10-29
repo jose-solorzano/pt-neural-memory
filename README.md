@@ -6,7 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/jose-solorzano/pt-neural-memory/blob/main/LICENSE)
 
 A fast associative memory built from **addressed recursive-least-squares (RLS)
-cells**, and a nonlinear regressor when keyed by random features.
+cells** — each an exact Kalman filter — and a nonlinear regressor when keyed by
+random features.
 
 The memory stores associations in one pass with an exact closed-form update. Its
 capacity is a configuration choice: the table can be sized from a few hundred
@@ -15,15 +16,22 @@ local map, later writes do not overwrite earlier ones. On a ten-part continual
 regression stream the memory ends at **ACC 0.954** and **BWT −0.006** — within
 0.02 of joint training and 0.11 above replay — with no gradient step.
 
+Each cell is a Kalman filter for the linear-Gaussian model
+`value = W · key + noise`: `store` is a measurement update, `covariance` is the
+filter's error covariance, and a read returns the posterior mean. The addressed
+table is therefore a Kalman-filter memory: a bank of independent filters routed
+by address. The same filter's `qᵀ P q` is the uncertainty signal used by the
+verified read.
+
 ## What this is
 
 Three composable layers, all in PyTorch:
 
 | Layer | What it does |
 |---|---|
-| `RLSMemCell` | A linear map `value = W @ key` fitted by the exact RLS/Kalman posterior update, including its `d × d` covariance. One pass reaches the least-squares fit. |
-| `AddressedMemory` | `n_blocks` tables of `2**n_bits` cells, selected by the sign bits of a random projection. A store trains the key's cell and its one-bit neighbours; a read is a lookup. `VerifiedMemory` adds a read-side probe. |
-| `AddressedRegressor` | A random Fourier feature map (optionally ReLU features or raw input) composed with the table. The result is a nonlinear regressor fitted in closed form. |
+| `RLSMemCell` | A linear map `value = W @ key` fitted by the exact RLS/Kalman posterior update, including its `d × d` covariance. This is the Kalman filter for `value = W key + noise`; one pass reaches the least-squares fit. |
+| `AddressedMemory` | A bank of Kalman filters: `n_blocks` tables of `2**n_bits` cells, selected by the sign bits of a random projection. A store trains the key's cell and its one-bit neighbours; a read is a lookup. `VerifiedMemory` adds a read-side probe. |
+| `AddressedRegressor` | A random Fourier feature map (optionally ReLU features or raw input) composed with the table. The result is a nonlinear regressor fitted in closed form; `kind="raw", use_bias=False` is the direct memory. |
 
 It is a **lookup and regression** structure, not a trainable layer: stores are
 indexed scatter updates, reads are gathers, and nothing is differentiated. That
@@ -181,6 +189,83 @@ The key is
 the raw input as a linear base. `W` and `b` are drawn once from `seed` and are
 never trained. Every fit happens in the cells' closed-form posterior updates.
 
+## Memory or regressor?
+
+`AddressedMemory` is already a regression system. A cell fits a linear map from
+its key to its value, so giving it `(x, y)` fits a piecewise-linear model of `y`
+in `x`, with the address bits deciding which piece applies:
+
+```python
+import torch
+from pt_neural_memory import AddressedMemory
+
+x = torch.randn(4096, 6)
+y = x @ torch.randn(6, 1)        # a linear target
+
+memory = AddressedMemory(
+    key_dim=x.shape[1],
+    value_dim=1,
+    n_blocks=3,
+    n_bits=min(12, x.shape[1]),  # n_bits <= key_dim
+    write_radius=1,
+    rr_lambda=0.01,
+    seed=0,
+)
+memory.store(x, y)
+prediction = memory(x)
+```
+
+`AddressedRegressor` is the same memory preceded by a key map `φ(x)`.
+`AddressedRegressor(..., kind="raw", use_bias=False)` is behaviorally equivalent
+to direct memory; `kind="raw", use_bias=True` appends an intercept. The default
+`kind="rff"` maps a low-dimensional input into a wider feature key. More
+generally, `AddressedMemory` is the object to use with a custom key map: compute
+`φ(x)` yourself and store/read it directly.
+
+Use `AddressedMemory` directly when:
+
+* `x` is already a good key — embeddings, one-hot vectors, engineered features,
+  high-dimensional descriptors;
+* the target is linear, or approximately linear within one address cell;
+* you want the smallest, fastest state: no feature matrix, no feature compute,
+  and a `key_dim` equal to the input dimension;
+* you want each cell's local map to be directly inspectable.
+
+Use `AddressedRegressor` when:
+
+* the target is nonlinear in a low-dimensional `x`, and a piecewise-linear fit
+  on raw `x` would need more pieces than the address space allows — `n_bits` is
+  capped at `key_dim` (and at 20), so a 6-D input has at most 64 addresses per
+  block;
+* you need more address bits (hence more capacity) than the raw input dimension
+  permits; with the defaults, the feature map expands the key to
+  `width + 1 + input_dim`;
+* you want the kernel-like random Fourier or ReLU features, with the intercept
+  and linear base already included;
+* accuracy matters more than the state difference.
+
+The tradeoff is stark on the ten-part stream (seed 0, 10 × 512 stored pairs):
+
+| model | key dim | address bits | ACC | BWT | state |
+|---|---:|---:|---:|---:|---:|
+| direct memory, raw 6-D input | 6 | 6 | 0.431 | −0.096 | 0.03 MiB |
+| direct + intercept | 7 | 7 | 0.592 | −0.059 | 0.08 MiB |
+| `AddressedRegressor` (RFF) | 71 | 10 | **0.948** | **−0.010** | 60 MiB |
+
+This comparison is runnable as
+[`examples/direct_vs_regressor.py`](https://github.com/jose-solorzano/pt-neural-memory/blob/main/examples/direct_vs_regressor.py).
+
+The direct-memory BWT is negative because six address bits put hundreds of
+writers in every cell: later parts keep changing the local fits. That is
+capacity exhaustion, not weight overwriting. On a purely linear 6-D target the
+same direct memory reaches RSE `2e-10` at 5,120 pairs — every writer imposes the
+same constraint, so crowding does not matter. The feature map buys the ability
+to represent a nonlinear target, at the cost of a 71-dimensional covariance and
+a much larger table.
+
+`AddressedMemory` also stores vector targets (`value_dim > 1`), so the same
+interface covers multi-output regression.
+
 ## How it works
 
 ### Addressing
@@ -197,7 +282,7 @@ For a standard-normal key each bit is an independent fair coin, so addresses
 are uniform and two keys collide with probability `2**-m`. A block has `2**m`
 cells; `n_blocks` independent blocks each route the same key.
 
-### The cell
+### The cell is a Kalman filter
 
 A cell is a ridge linear map with prior `W ~ N(0, I/λ)`. After keys `K` and
 values `V`, its state is the exact posterior
@@ -212,6 +297,14 @@ A write applies the rank-one Kalman update to every cell it names:
 P_i ← P_i − (P_i k)(P_i k)ᵀ / (1 + kᵀ P_i k)
 W_i ← W_i + (v − W_i k)(P_i k)ᵀ / (1 + kᵀ P_i k)
 ```
+
+For one pair the gain is the Kalman gain `g = P k / (1 + kᵀ P k)`; `P` is the
+filter's error covariance and `qᵀ P q` is the posterior variance of the answer
+at `q`. `RLSMemCell.decay < 1` inflates `P` before each update, which is
+exponential forgetting for a non-stationary stream (the bank does not expose
+it). `VerifiedMemory` uses this covariance to choose the least-uncertain filter
+among neighbouring addresses, so the read is driven by the filter's own
+uncertainty rather than a separate score.
 
 Rows naming the same cell are applied in sequence, so repeated writes reproduce
 one-at-a-time storage exactly. Rows naming different cells are one indexed
@@ -245,6 +338,12 @@ cell that already holds constraints (making it a better joint least-squares fit
 of all its writers) or trains a cell that was empty. The state is the set of
 stored associations, encoded as local maps; recall is a lookup, not a forward
 pass through weights that have since changed.
+
+The qualification is capacity. With too few addresses, later writers can crowd
+a cell and move its local fit; that is capacity exhaustion, not overwriting.
+The direct-memory row in the table above shows it: a 6-bit address space is too
+small for the ten-part stream, and its BWT is −0.096 even though no weight
+vector is shared.
 
 That is also the honest caveat: the memory keeps the data in compressed form.
 It is a **ceiling check** for continual learning — what does a model that
@@ -436,7 +535,7 @@ This is a research prototype, not a drop-in continuous-learning solution.
 ```
 src/pt_neural_memory/     package code and benchmark modules
 tests/                    correctness, invariants, benchmark protocol
-examples/                 two runnable end-to-end examples
+examples/                 three runnable end-to-end examples
 docs/                     design reports and full measurement protocols
 ```
 
@@ -454,7 +553,7 @@ docs/                     design reports and full measurement protocols
 ```bibtex
 @software{solorzano2026ptneuralmemory,
   author  = {Jose Solorzano},
-  title   = {pt-neural-memory: addressed RLS-cell associative memory and nonlinear regressor},
+  title   = {pt-neural-memory: addressed RLS/Kalman-cell associative memory and nonlinear regressor},
   year    = {2026},
   version = {0.1.0},
   url     = {https://github.com/jose-solorzano/pt-neural-memory},

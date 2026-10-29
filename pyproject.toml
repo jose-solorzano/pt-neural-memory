@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pt-neural-memory"
 version = "0.1.0"
-description = "Fast addressed associative memory and nonlinear regressor from exact RLS cells"
+description = "Fast addressed associative memory and nonlinear regressor from exact RLS/Kalman cells"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -17,6 +17,8 @@ keywords = [
     "continual-learning",
     "catastrophic-forgetting",
     "recursive-least-squares",
+    "kalman-filter",
+    "kalman-memory",
     "random-features",
     "regression",
     "pytorch",

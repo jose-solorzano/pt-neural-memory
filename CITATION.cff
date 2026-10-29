@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "pt-neural-memory: addressed RLS-cell associative memory and nonlinear regressor"
+title: "pt-neural-memory: addressed RLS/Kalman-cell associative memory and nonlinear regressor"
 abstract: >-
   A fast associative memory built from addressed recursive-least-squares cells,
-  with a closed-form nonlinear regression mode and a continual-learning
-  benchmark showing no catastrophic forgetting when the table retains every
-  stored pair.
+  each the exact Kalman filter for a linear-Gaussian observation model, with a
+  closed-form nonlinear regression mode and a continual-learning benchmark
+  showing no catastrophic forgetting when the table retains every stored pair.
 authors:
   - family-names: Solorzano
     given-names: Jose
@@ -19,4 +19,5 @@ keywords:
   - continual learning
   - catastrophic forgetting
   - recursive least squares
+  - Kalman filter
   - random features

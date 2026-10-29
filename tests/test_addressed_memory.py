@@ -212,6 +212,20 @@ def test_state_is_the_map_and_the_covariance():
     )
 
 
+def test_direct_memory_fits_a_linear_function():
+    """AddressedMemory is itself a piecewise-linear regressor on raw keys."""
+    generator = torch.Generator().manual_seed(0)
+    keys = torch.randn(256, KEY_DIM, generator=generator, dtype=torch.float64)
+    weights = torch.randn(KEY_DIM, VALUE_DIM, generator=generator, dtype=torch.float64)
+    values = keys @ weights
+
+    memory = make_memory()
+    memory.store(keys, values)
+    prediction = memory(keys)
+    rse = (prediction - values).square().sum() / values.square().sum()
+    assert rse < 1e-12
+
+
 def test_rejects_invalid_arguments():
     with pytest.raises(ValueError):
         AddressedMemory(0, 4)

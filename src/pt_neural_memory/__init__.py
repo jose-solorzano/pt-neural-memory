@@ -3,9 +3,11 @@
 The package has three layers:
 
 * :class:`RLSMemCell` -- one linear map fitted by the exact recursive-least-
-  squares (Kalman) update, with its posterior covariance.
-* :class:`AddressedMemory` -- a table of such cells selected by the sign bits of
-  a random projection, so many independent local maps can be stored and read.
+  squares update, which is the Kalman filter for ``value = W key + noise``,
+  with its posterior error covariance.
+* :class:`AddressedMemory` -- a bank of independent Kalman filters selected by
+  the sign bits of a random projection, so many local maps can be stored and
+  read.
 * :class:`AddressedRegressor` -- a random feature map composed with the table,
   which turns the memory into a nonlinear regressor fitted in closed form.
 
