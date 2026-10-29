@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pt-neural-memory"
+version = "0.1.0"
+description = "Fast addressed associative memory and nonlinear regressor from exact RLS cells"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Jose Solorzano", email = "jose.h.solorzano@gmail.com" },
+]
+keywords = [
+    "associative-memory",
+    "continual-learning",
+    "catastrophic-forgetting",
+    "recursive-least-squares",
+    "random-features",
+    "regression",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+export = [
+    "pandas>=2.0",
+]
+hub = [
+    "datasets>=2.0",
+    "huggingface_hub>=0.20",
+]
+dev = [
+    "pytest>=7",
+    "pandas>=2.0",
+    "build>=1.0",
+    "twine>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jose-solorzano/pt-neural-memory"
+Repository = "https://github.com/jose-solorzano/pt-neural-memory"
+Issues = "https://github.com/jose-solorzano/pt-neural-memory/issues"
+Documentation = "https://github.com/jose-solorzano/pt-neural-memory#readme"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pt_neural_memory = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

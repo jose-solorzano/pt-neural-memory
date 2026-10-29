@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "pt-neural-memory: addressed RLS-cell associative memory and nonlinear regressor"
+abstract: >-
+  A fast associative memory built from addressed recursive-least-squares cells,
+  with a closed-form nonlinear regression mode and a continual-learning
+  benchmark showing no catastrophic forgetting when the table retains every
+  stored pair.
+authors:
+  - family-names: Solorzano
+    given-names: Jose
+    email: jose.h.solorzano@gmail.com
+version: 0.1.0
+date-released: 2026-10-29
+license: MIT
+repository-code: "https://github.com/jose-solorzano/pt-neural-memory"
+keywords:
+  - associative memory
+  - continual learning
+  - catastrophic forgetting
+  - recursive least squares
+  - random features
