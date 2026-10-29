@@ -40,7 +40,7 @@ protocols, tables and caveats are in [docs](https://github.com/jose-solorzano/pt
 | Clean recall, 1,024 pairs (`d=32`, `m=12`, 3 blocks) | RSE `2.0e-7` own address, `3.8e-7` verified |
 | Clean recall, 4,096 pairs | RSE `1.1e-6` own, `1.8e-5` verified |
 | Noisy cues, `σ=0.3`, 1,024 pairs | RSE `1.8e-1` own, **`4.3e-2` verified** |
-| Capacity, one cell vs. a 3 × 2¹² table | 24 vs. **5,041** pairs at 99% exact (**210×**) |
+| Capacity, one cell vs. a 2¹²-cell table | 24 vs. **5,041** pairs at 99% exact (**210×**) |
 | Ten-part regression, 5 seeds | **ACC 0.954 ± 0.008, BWT −0.006 ± 0.005** |
 | Joint training / replay reference | ACC 0.972 / 0.848, BWT +0.020 / −0.025 |
 | Cost at `d=32, d_v=16, m=12, n=3` | ~300 µs per stored pair, 5–7 µs per own-address read, 72 MiB state |
