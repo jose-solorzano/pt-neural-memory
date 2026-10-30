@@ -132,6 +132,27 @@ def test_state_bytes_matches_the_table_arithmetic():
     assert model.state_bytes() == expected
 
 
+def test_store_is_no_grad_by_default_and_can_keep_the_graph():
+    inputs = torch.randn(16, 4, requires_grad=True)
+    targets = torch.randn(16, 1)
+
+    plain = AddressedRegressor(
+        4, kind="rff", width=8, n_bits=3, n_blocks=2, seed=0
+    )
+    plain.store(inputs, targets)
+    assert plain.memory.cells.weights.grad_fn is None
+    assert plain.memory.cells.covariance.grad_fn is None
+
+    grad_model = AddressedRegressor(
+        4, kind="rff", width=8, n_bits=3, n_blocks=2, seed=0
+    )
+    grad_model.store(inputs, targets, grad_enabled=True)
+    assert grad_model.memory.cells.weights.grad_fn is not None
+    grad_model.memory.cells.weights.sum().backward()
+    assert inputs.grad is not None
+    assert torch.isfinite(inputs.grad).all()
+
+
 def test_store_and_read_shape_errors_raise():
     model = AddressedRegressor(4, kind="rff", width=8, n_bits=3, n_blocks=1)
     with pytest.raises(ValueError, match="targets must have shape"):

@@ -127,6 +127,25 @@ def test_state_is_the_map_and_the_covariance():
     assert sum(buffer.numel() for buffer in bank.buffers()) == 5 * (DV * D + D * D)
 
 
+def test_store_is_no_grad_by_default_and_can_keep_the_graph():
+    index = torch.tensor([0, 1], dtype=torch.int64)
+    plain = RLSCellBank(D, DV, 3)
+    plain_key = torch.randn(2, D, requires_grad=True)
+    plain.store(index, plain_key, torch.randn(2, DV))
+    assert plain.weights.grad_fn is None
+    assert plain.covariance.grad_fn is None
+    assert not plain.weights.requires_grad
+
+    grad_bank = RLSCellBank(D, DV, 3)
+    grad_key = torch.randn(2, D, requires_grad=True)
+    grad_bank.store(index, grad_key, torch.randn(2, DV), grad_enabled=True)
+    assert grad_bank.weights.grad_fn is not None
+    assert grad_bank.covariance.grad_fn is not None
+    (grad_bank.weights.sum() + grad_bank.covariance.sum()).backward()
+    assert grad_key.grad is not None
+    assert torch.isfinite(grad_key.grad).all()
+
+
 def test_rejects_invalid_arguments():
     with pytest.raises(ValueError):
         RLSCellBank(0, DV, 1)

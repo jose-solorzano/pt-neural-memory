@@ -33,10 +33,12 @@ Three composable layers, all in PyTorch:
 | `AddressedMemory` | A bank of Kalman filters: `n_blocks` tables of `2**n_bits` cells, selected by the sign bits of a random projection. A store trains the key's cell and its one-bit neighbours; a read is a lookup. `VerifiedMemory` adds a read-side probe. |
 | `AddressedRegressor` | A random Fourier feature map (optionally ReLU features or raw input) composed with the table. The result is a nonlinear regressor fitted in closed form; `kind="raw", use_bias=False` is the direct memory. |
 
-It is a **lookup and regression** structure, not a trainable layer: stores are
-indexed scatter updates, reads are gathers, and nothing is differentiated. That
-is the property that makes it useful as memory (no shared weight to overwrite)
-and the property that limits it (no end-to-end feature learning).
+It is a **lookup and regression** structure, not a trained layer: stores are
+indexed updates, reads are gathers, and the feature map is random. Stores run
+under `torch.no_grad` by default; `store(..., grad_enabled=True)` opts into
+backpropagation through a write. That default is what makes it useful as memory
+(no shared weight to overwrite), and the discrete address choice is what limits
+end-to-end feature learning.
 
 ## Results at a glance
 
@@ -323,6 +325,11 @@ the default three-block configuration. These are not redundant copies: each
 neighbour fits its own local map from every pair that touches it, so a query
 that lands on a neighbour still gets a map trained on its key.
 
+Stores are no-grad by default. Pass `grad_enabled=True` to keep the autograd
+graph through the written keys and values; reads follow the ambient autograd
+mode. The address choice itself is discrete (`≥ 0` sign bits), so gradients do
+not flow through the routing decision.
+
 A plain read evaluates the map at the query's own address in each block and
 averages. `VerifiedMemory` instead probes the addresses within `read_radius`
 flips and keeps the cell with the smallest posterior variance:
@@ -520,11 +527,11 @@ Full matrices and sweeps: [docs/FORGETTING.md](https://github.com/jose-solorzano
 
 ### Training speed
 
-The memory has no optimizer and no backward pass: fitting is a sequence of
-closed-form stores. On the ten-part stream (5,120 training pairs), one fit takes
-about **3.3 s** on four CPU threads — about as long as 300-step fine-tuning or
-replay, and roughly 2.5–2.9× faster than EWC/SI and the 800-step joint
-reference. The price is state: 60 MiB versus 18 KiB.
+The memory has no optimizer and, by default, no backward pass: fitting is a
+sequence of closed-form stores. On the ten-part stream (5,120 training pairs),
+one fit takes about **3.3 s** on four CPU threads — about as long as 300-step
+fine-tuning or replay, and roughly 2.5–2.9× faster than EWC/SI and the 800-step
+joint reference. The price is state: 60 MiB versus 18 KiB.
 
 ```bash
 python -m pt_neural_memory.benchmarks.training_cost
@@ -603,9 +610,11 @@ This is a research prototype, not a drop-in continuous-learning solution.
 * **No forgetting factor in the table.** `RLSMemCell.decay` exists, but
   `RLSCellBank` does not apply it: decaying every cell on every write is a
   whole-table operation. Non-stationary streams need a different mechanism.
-* **Not differentiable.** Stores are indexed scatters and verified reads take an
-  `argmin`. The feature map is random and untrained; training it would turn this
-  into a different (gradient) model.
+* **Differentiability is opt-in and stops at the address choice.** Stores
+  default to no-grad; `grad_enabled=True` keeps the graph for the cell, bank,
+  memory, and regressor. The feature map is still random and untrained, and
+  `VerifiedMemory`'s `argmin` is a discrete selection, so you can backprop
+  through a fixed address's map but not through the choice of cell.
 * **Synthetic evidence only.** Gaussian keys/values for recall, and a synthetic
   ten-part stream for regression. No trained embeddings, no real dataset, no
   downstream task.

@@ -152,9 +152,10 @@ class AddressedRegressor(nn.Module):
 
     A store writes the pairs ``(phi(x), y)`` into the memory; a read returns the
     addressed cell's prediction in each block, averaged over blocks (or the
-    least-uncertain block, with ``read="verified"``).  Nothing is trained by
-    gradient descent, so there is no shared parameter for a later batch to
-    overwrite.
+    least-uncertain block, with ``read="verified"``).  By default nothing is
+    trained by gradient descent — a store is no-grad — so there is no shared
+    parameter for a later batch to overwrite.  Pass ``grad_enabled=True`` to
+    ``store`` to keep the graph through a write.
 
     Args:
         input_dim: dimension of the inputs.
@@ -219,25 +220,39 @@ class AddressedRegressor(nn.Module):
             dtype=dtype,
         )
 
-    def store(self, inputs: torch.Tensor, targets: torch.Tensor) -> None:
+    def store(
+        self,
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        grad_enabled: bool = False,
+    ) -> None:
         """Write a batch of ``(x, y)`` pairs into the addressed cells.
+
+        The feature map and the memory update are no-grad by default; pass
+        ``grad_enabled=True`` to keep the graph through the inputs and targets.
 
         Args:
             inputs: ``(batch, input_dim)`` inputs.
             targets: ``(batch, value_dim)`` targets.
+            grad_enabled: keep the autograd graph for the update.
         """
         if targets.dim() != 2 or targets.shape[1] != self.value_dim:
             raise ValueError(
                 f"targets must have shape (batch, {self.value_dim}), "
                 f"got {tuple(targets.shape)}"
             )
-        keys = self.features(inputs)
-        if keys.shape[0] != targets.shape[0]:
-            raise ValueError(
-                f"batch sizes differ: {keys.shape[0]} inputs, "
-                f"{targets.shape[0]} targets"
+        with torch.set_grad_enabled(mode=grad_enabled):
+            keys = self.features(inputs)
+            if keys.shape[0] != targets.shape[0]:
+                raise ValueError(
+                    f"batch sizes differ: {keys.shape[0]} inputs, "
+                    f"{targets.shape[0]} targets"
+                )
+            self.memory.store(
+                keys,
+                targets.to(keys.dtype),
+                grad_enabled=grad_enabled,
             )
-        self.memory.store(keys, targets.to(keys.dtype))
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Predict targets for ``inputs``, shape ``(batch, value_dim)``."""

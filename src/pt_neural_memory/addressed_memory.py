@@ -66,8 +66,10 @@ class AddressedMemory(nn.Module):
     ``rr_lambda``, and its covariance says how well-constrained that map is.
     One cell can therefore recall up to ``key_dim`` independent associations
     exactly, where a cell that stores a mean can recall only one.  An unwritten
-    cell is the prior and answers zero.  Writes are not differentiable; this
-    memory is a lookup structure, not a layer that trains by backpropagation.
+    cell is the prior and answers zero.  Writes are no-grad by default; pass
+    ``grad_enabled=True`` to ``store`` to keep the graph through the written
+    keys and values.  Address selection is discrete, so gradients do not flow
+    through the choice of cell.
 
     Args:
         key_dim: dimension of the keys the memory is addressed with.
@@ -194,15 +196,23 @@ class AddressedMemory(nn.Module):
             for mask in _flip_masks(self.n_bits, self.write_radius)
         ]
 
-    def store(self, key: torch.Tensor, value: torch.Tensor) -> None:
+    def store(
+        self,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        grad_enabled: bool = False,
+    ) -> None:
         """Train the write neighbourhood of a batch of associations.
 
         Each pair trains the cell at its address and every cell within
-        ``write_radius`` flips of it, in every block.
+        ``write_radius`` flips of it, in every block. The update is no-grad by
+        default; pass ``grad_enabled=True`` to keep the autograd graph through
+        the key and value.
 
         Args:
             key: ``(batch, key_dim)`` keys to address.
             value: ``(batch, value_dim)`` values to associate with them.
+            grad_enabled: keep the autograd graph for the update.
         """
         if key.dim() != 2 or value.dim() != 2:
             raise ValueError(
@@ -224,33 +234,39 @@ class AddressedMemory(nn.Module):
             )
         if key.shape[0] == 0:
             return
-        expanded_key = (
-            key[:, None, :]
-            .expand(-1, self.n_blocks, -1)
-            .reshape(-1, self.key_dim)
-        )
-        expanded_value = (
-            value[:, None, :]
-            .expand(-1, self.n_blocks, -1)
-            .reshape(-1, self.value_dim)
-        )
-        # One bank call for the whole neighbourhood: the masks name disjoint
-        # cells for a given pair, and the bank sequences any repeats itself.
-        indices = []
-        keys = []
-        values = []
-        for address, valid in self._write_addresses(key):
-            flat = self._flat_indices(address).reshape(-1)
-            if valid is None:
-                indices.append(flat)
-                keys.append(expanded_key)
-                values.append(expanded_value)
-            else:
-                keep = valid.reshape(-1)
-                indices.append(flat[keep])
-                keys.append(expanded_key[keep])
-                values.append(expanded_value[keep])
-        self.cells.store(torch.cat(indices), torch.cat(keys), torch.cat(values))
+        with torch.set_grad_enabled(mode=grad_enabled):
+            expanded_key = (
+                key[:, None, :]
+                .expand(-1, self.n_blocks, -1)
+                .reshape(-1, self.key_dim)
+            )
+            expanded_value = (
+                value[:, None, :]
+                .expand(-1, self.n_blocks, -1)
+                .reshape(-1, self.value_dim)
+            )
+            # One bank call for the whole neighbourhood: the masks name disjoint
+            # cells for a given pair, and the bank sequences any repeats itself.
+            indices = []
+            keys = []
+            values = []
+            for address, valid in self._write_addresses(key):
+                flat = self._flat_indices(address).reshape(-1)
+                if valid is None:
+                    indices.append(flat)
+                    keys.append(expanded_key)
+                    values.append(expanded_value)
+                else:
+                    keep = valid.reshape(-1)
+                    indices.append(flat[keep])
+                    keys.append(expanded_key[keep])
+                    values.append(expanded_value[keep])
+            self.cells.store(
+                torch.cat(indices),
+                torch.cat(keys),
+                torch.cat(values),
+                grad_enabled=grad_enabled,
+            )
 
     def read_blocks(self, key: torch.Tensor) -> torch.Tensor:
         """Per-block cell predictions, shape ``(n_blocks, batch, value_dim)``."""

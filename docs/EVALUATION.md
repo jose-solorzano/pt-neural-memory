@@ -268,9 +268,11 @@ Implementation notes:
   well-posed. The factored update stays well-conditioned.
 * Covariance is out-of-place and symmetrised each step; a 320-write stream
   keeps `P` positive definite (`λ_min = 1.6e-3`) and exactly symmetric.
-* `grad_enabled=True` is still supported: the buffers are reassigned rather
-  than mutated in place, and the graph reaches the written keys
-  (`test_grad_enabled_keeps_the_graph_alive`).
+* Stores are no-grad by default. `grad_enabled=True` keeps the graph through
+  the written keys and values for the cell, bank, memory, and regressor. The
+  cell reassigns its buffers; the bank uses an autograd-tracked `index_copy_`.
+  The graph reaches the written keys (`test_grad_enabled_keeps_the_graph_alive`
+  and the `*_store_is_no_grad_by_default` tests).
 
 ## 6. Sensitivity, limitations, and what was not tested
 

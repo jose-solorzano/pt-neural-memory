@@ -235,17 +235,20 @@ class RLSCellBank(nn.Module):
         index: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
+        grad_enabled: bool = False,
     ) -> None:
         """Fold associations into the cells named by ``index``.
 
         Repeated indices are legal and exact: the cell receives the same
         sequence of Kalman updates as if the rows had been stored one at a
-        time.
+        time. The update is no-grad by default; pass ``grad_enabled=True`` to
+        keep the autograd graph through the written keys and values.
 
         Args:
             index: ``(batch,)`` flat cell ids.
             key: ``(batch, in_features)`` keys.
             value: ``(batch, out_features)`` values.
+            grad_enabled: keep the autograd graph for the update.
         """
         if index.dim() != 1:
             raise ValueError(f"index must be 1D, got shape {tuple(index.shape)}")
@@ -272,10 +275,11 @@ class RLSCellBank(nn.Module):
         self._check_index(index)
         if index.shape[0] == 0:
             return
-        for rows in self._rounds(index):
-            for start in range(0, rows.shape[0], _UPDATE_CHUNK):
-                batch = rows[start : start + _UPDATE_CHUNK]
-                self._update(index[batch], key[batch], value[batch])
+        with torch.set_grad_enabled(mode=grad_enabled):
+            for rows in self._rounds(index):
+                for start in range(0, rows.shape[0], _UPDATE_CHUNK):
+                    batch = rows[start : start + _UPDATE_CHUNK]
+                    self._update(index[batch], key[batch], value[batch])
 
     def predict(self, index: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
         """Posterior mean of the cells named by ``index``, ``W_i k``.

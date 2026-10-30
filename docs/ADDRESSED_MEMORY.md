@@ -511,8 +511,10 @@ hold more than `0.75 d` associations is more addressed cells.
 * **Dense covariance.** `d²` per cell makes the table only viable for small
   `m` or wide values; the 4 GiB sizing is `2^16` cells per block where the
   mean-cell design reached `2^23`.
-* **Not differentiable.** Writes are indexed scatters and the read takes an
-  `argmin`.
+* **Differentiability is opt-in and stops at the address.** Stores are no-grad
+  by default; `grad_enabled=True` keeps the graph through the written keys and
+  values. Address selection is discrete and `VerifiedMemory` takes an `argmin`,
+  so gradients do not flow through the routing decision.
 * **Synthetic data only.** Gaussian keys and values, no trained embeddings. The
   regression use in [FORGETTING.md](FORGETTING.md) is synthetic too, and its
   key map is random and untrained; the cell itself only ever fits a linear map.
@@ -546,7 +548,7 @@ hold more than `0.75 d` associations is more addressed cells.
 ## Reproduce
 
 ```bash
-python -m pytest -q tests            # 116 tests: cell, bank, memory, regressor, sizing
+python -m pytest -q tests            # 119 tests: cell, bank, memory, regressor, sizing
 python -m pt_neural_memory.benchmarks.addressed_bench # §3.1-3.4, §3.6 + results/addressed_bench.json
 python -m pt_neural_memory.benchmarks.scaling_bench   # §3.2, §3.5 + results/scaling_bench.json
 python -m pt_neural_memory.benchmarks.balance_bench   # §5 error law and budget split + results/balance_bench.json

@@ -11,8 +11,10 @@ The package has three layers:
 * :class:`AddressedRegressor` -- a random feature map composed with the table,
   which turns the memory into a nonlinear regressor fitted in closed form.
 
-Nothing here is trained by backpropagation: a store is an indexed, exact
-posterior update, and a read is a table lookup and a matrix-vector product.
+A store is an indexed, exact posterior update and a read is a table lookup and
+a matrix-vector product. Stores are no-grad by default;
+``store(..., grad_enabled=True)`` keeps the graph through a write. The feature
+map remains random and untrained, and address selection is discrete.
 """
 
 from importlib.metadata import PackageNotFoundError, version

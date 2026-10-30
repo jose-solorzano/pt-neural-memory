@@ -226,6 +226,27 @@ def test_direct_memory_fits_a_linear_function():
     assert rse < 1e-12
 
 
+def test_store_is_no_grad_by_default_and_can_keep_the_graph():
+    generator = torch.Generator().manual_seed(0)
+    keys = torch.randn(8, KEY_DIM, generator=generator, dtype=torch.float64)
+    values = torch.randn(8, VALUE_DIM, generator=generator, dtype=torch.float64)
+    keys.requires_grad_(True)
+
+    plain = make_memory()
+    plain.store(keys, values)
+    assert plain.cells.weights.grad_fn is None
+    assert plain.cells.covariance.grad_fn is None
+    assert not plain.cells.weights.requires_grad
+
+    grad_memory = make_memory()
+    grad_memory.store(keys, values, grad_enabled=True)
+    assert grad_memory.cells.weights.grad_fn is not None
+    assert grad_memory.cells.covariance.grad_fn is not None
+    (grad_memory.cells.weights.sum() + grad_memory.cells.covariance.sum()).backward()
+    assert keys.grad is not None
+    assert torch.isfinite(keys.grad).all()
+
+
 def test_rejects_invalid_arguments():
     with pytest.raises(ValueError):
         AddressedMemory(0, 4)

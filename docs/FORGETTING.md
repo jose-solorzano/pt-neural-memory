@@ -838,7 +838,7 @@ verified read, and the state arithmetic.
 Files: [tests/test_forgetting_data.py](../tests/test_forgetting_data.py),
 [tests/test_forgetting_bench.py](../tests/test_forgetting_bench.py),
 [tests/test_addressed_regressor.py](../tests/test_addressed_regressor.py). The
-forgetting tests take about 10 s; the full suite is 116 tests and passes on this
+forgetting tests take about 10 s; the full suite is 119 tests and passes on this
 checkout.
 
 ## Reproduce
