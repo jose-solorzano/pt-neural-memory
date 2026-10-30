@@ -518,6 +518,43 @@ change of input distribution with a shared target, remembering is a data
 problem, and a few stored points solve it better than a parameter penalty.
 Full matrices and sweeps: [docs/FORGETTING.md](https://github.com/jose-solorzano/pt-neural-memory/blob/main/docs/FORGETTING.md).
 
+### Training speed
+
+The memory has no optimizer and no backward pass: fitting is a sequence of
+closed-form stores. On the ten-part stream (5,120 training pairs), one fit takes
+about **3.2 s** on four CPU threads — about as long as 300-step fine-tuning or
+replay, and roughly 2.5–2.9× faster than EWC/SI and the 800-step joint
+reference. The price is state: 60 MiB versus 18 KiB.
+
+```bash
+python -m pt_neural_memory.benchmarks.training_cost
+```
+
+| method | fit (s) | per part (ms) | training work | model state |
+|---|---:|---:|---|---:|
+| naive fine-tuning | 3.4 | 340 | 3,000 Adam steps | 18 KiB |
+| EWC | 8.1 | 810 | 3,000 steps + Fisher anchors | 18 KiB + anchors |
+| SI | 8.8 | 880 | 3,000 steps + path integral | 18 KiB + anchors |
+| replay | 3.5 | 350 | 3,000 steps, 32 samples/part | 18 KiB + 9 KiB |
+| joint | 9.2 | 920 | 8,000 steps (larger budget) | 18 KiB + 140 KiB |
+| **addressed** | **3.2** | **320** | **5,120 stores × 33 cells** | **60 MiB** |
+
+Conditions: CPU, float32, four threads, seed 0, median of three fresh fits;
+data generation, model construction and the 10 × 10 evaluation are excluded.
+The timing varies by 10–20% on a shared machine, so treat the table as
+representative rather than a benchmark record. Model state excludes the MLP's
+Adam moments (two per parameter, 2 × 18 KiB during training); the addressed
+memory has no optimizer state.
+
+This is total fit time on a small stream, not throughput. At the default 71-D
+feature key the memory costs about **0.6 ms per stored pair**; its time is linear
+in the number of pairs, while the MLP methods take a fixed step budget. On a
+much larger stream, storing every pair will dominate. Threading also matters:
+on one thread the addressed fit is ~4.5 s versus ~3.1 s for naive, because the
+per-block work parallelizes; the table uses the benchmark's four-thread setting.
+EWC and SI pay for Fisher/path-integral bookkeeping, and joint gets a larger
+budget, so its time is a reference rather than an equal-budget comparison.
+
 ## Limitations
 
 This is a research prototype, not a drop-in continuous-learning solution.

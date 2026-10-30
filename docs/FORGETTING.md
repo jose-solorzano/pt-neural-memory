@@ -134,7 +134,7 @@ variance.
 * **No task identifier.** Domain-incremental is the harder of the two scenarios
   (van de Ven & Tolias report 63.95 vs 98.64 for EWC on split MNIST), and it is
   the one where replay and regularisation separate.
-* **10 parts × 512 samples.** One method on one seed takes 5–9 s, so paired
+* **10 parts × 512 samples.** One method on one seed takes 3–9 s, so paired
   five-seed comparisons are cheap and the seed spread can be reported rather
   than hidden.
 * **Noiseless test targets.** The score reflects the learned function; the 10%
@@ -565,14 +565,14 @@ in state and data rather than in a penalty term.
 | stored pairs | 0 | 5,120 |
 | per-part fitting | 300 Adam steps | closed form, 33 cell updates per pair |
 | probes per query | one forward pass | 3 cells |
-| seconds per run (seed 0) | 5.1 | 2.8 |
+| fit seconds (seed 0, 4 threads) | 3.4 | 3.2 |
 
 The memory is about 3,400× the MLP's state, and about 440× the 140 KiB the raw
 pairs would occupy. The bill is the dense covariance: $71^2$ numbers for each of
 3,072 cells, the same fact as [ADDRESSED_MEMORY.md](ADDRESSED_MEMORY.md) §1.5.
-The state and probe counts follow from the configuration; the seconds and
-microsecond figures are wall-clock on this checkout (four threads) and will
-vary.
+The state and probe counts follow from the configuration; the fit seconds are
+medians of three fresh fits, and both they and the microsecond figures are
+wall-clock on this checkout (four threads) and will vary.
 
 **Size.** One axis moves capacity, locality and interference together:
 
@@ -786,7 +786,7 @@ overwhelmingly classification.
 ## 8. Recommendation
 
 1. Use this stream as the regression arm of the forgetting tests: it is small
-   (10 × 512 points), fast (5–9 s per method per seed), deterministic, and the
+   (10 × 512 points), fast (3–9 s per method per seed), deterministic, and the
    joint ceiling is known (0.972).
 2. Report the full $R^2$ matrix, not just ACC/BWT. The matrix is where the
    failure is visible; the summary statistics are noisy.
@@ -834,6 +834,7 @@ checkout.
 ```bash
 python -m pytest -q tests/test_forgetting_data.py tests/test_forgetting_bench.py tests/test_addressed_regressor.py
 python -m pt_neural_memory.benchmarks.forgetting_bench            # all tables above + results/forgetting_bench.json
+python -m pt_neural_memory.benchmarks.training_cost             # fit-time table + results/training_cost.json
 python -m pt_neural_memory.benchmarks.export_forgetting --upload --token-file <token-file>   # rebuild and publish the Hub dataset
 ```
 
