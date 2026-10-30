@@ -10,10 +10,12 @@ construction, and the 10 x 10 evaluation are excluded. The reported time is the
 median of the three fits; a single cold run is often slower, so use repeated
 measurements when comparing machines.
 
-The comparison is about total fit time on this small stream, not throughput:
-the MLP methods take a fixed 300 steps per part (the joint reference takes
-800), while the addressed memory stores every pair once. Its cost is linear in
-the number of stored pairs, so the balance changes on a much larger stream.
+The first table is the continual-learning protocol: each method sees the parts
+in order, and the MLP methods take a fixed 300 steps per part (the joint
+reference takes 800). The second table is a different baseline: one MLP trained
+from scratch on all 5,120 pairs pooled, with no task boundaries and no
+forgetting. It is the offline oracle that has all the data, not a continual
+learner.
 """
 
 from __future__ import annotations
@@ -26,13 +28,21 @@ from pathlib import Path
 from statistics import median
 
 import torch
+import torch.nn.functional as F
 
-from pt_neural_memory.benchmarks.forgetting_bench import LEARNERS, MEMORY_OPTIONS
+from pt_neural_memory.benchmarks.forgetting_bench import (
+    DEFAULT_PROTOCOL,
+    LEARNERS,
+    MEMORY_OPTIONS,
+    MLP,
+    r2_score,
+)
 from pt_neural_memory.forgetting_data import regression_stream
 
 SEED = 0
 REPEATS = 3
 METHODS: tuple[str, ...] = ("naive", "ewc", "si", "replay", "joint", "addressed")
+FROM_SCRATCH_STEPS: tuple[int, ...] = (300, 1000, 3000, 8000, 16000)
 THREADS = 4
 RESULTS_PATH = Path("results/training_cost.json")
 
@@ -59,6 +69,40 @@ def resident_state(learner: object) -> int:
             for parameter in learner.params
         )
     )
+
+
+def train_from_scratch(
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    stream,
+    steps: int,
+    seed: int,
+) -> tuple[float, float, list[float]]:
+    """Fit one MLP on the pooled pairs and return seconds, ACC and per-part R^2."""
+    model = MLP(
+        inputs.shape[1],
+        DEFAULT_PROTOCOL.hidden,
+        DEFAULT_PROTOCOL.depth,
+        generator=torch.Generator().manual_seed(seed),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=DEFAULT_PROTOCOL.lr)
+    generator = torch.Generator().manual_seed(seed + 10_007)
+    start = time.perf_counter()
+    for _ in range(steps):
+        indices = torch.randint(
+            inputs.shape[0], (DEFAULT_PROTOCOL.batch_size,), generator=generator
+        )
+        loss = F.mse_loss(model(inputs[indices]), targets[indices])
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+    elapsed = time.perf_counter() - start
+    model.eval()
+    with torch.no_grad():
+        scores = [
+            r2_score(model(task.test_inputs), task.test_targets) for task in stream
+        ]
+    return elapsed, sum(scores) / len(scores), scores
 
 
 def main() -> None:
@@ -97,8 +141,35 @@ def main() -> None:
             f"| {row['per_part_ms']:.0f} | {state} |"
         )
 
+    inputs = torch.cat([task.train_inputs for task in stream])
+    targets = torch.cat([task.train_targets for task in stream])
+    scratch_rows = []
+    print("\nFrom-scratch MLP on all parts pooled (no task boundaries):")
+    print("\n| steps | fit median (s) | ACC |")
+    print("|---:|---:|---:|")
+    for steps in FROM_SCRATCH_STEPS:
+        times = []
+        scores: list[float] = []
+        for _ in range(REPEATS):
+            elapsed, acc, scores = train_from_scratch(
+                inputs, targets, stream, steps, SEED
+            )
+            times.append(elapsed)
+        acc = sum(scores) / len(scores)
+        scratch_rows.append(
+            {
+                "steps": steps,
+                "median_seconds": median(times),
+                "min_seconds": min(times),
+                "runs": times,
+                "acc": acc,
+                "scores": scores,
+            }
+        )
+        print(f"| {steps:,} | {median(times):.2f} | {acc:+.3f} |")
+
     n_tasks = len(stream)
-    stored_pairs = sum(task.train_inputs.shape[0] for task in stream)
+    stored_pairs = int(inputs.shape[0])
     writes_per_pair = int(MEMORY_OPTIONS["n_blocks"]) * sum(
         comb(int(MEMORY_OPTIONS["n_bits"]), j)
         for j in range(int(MEMORY_OPTIONS["write_radius"]) + 1)
@@ -122,6 +193,7 @@ def main() -> None:
                 "stored_pairs": stored_pairs,
                 "writes_per_pair": writes_per_pair,
                 "rows": rows,
+                "from_scratch": scratch_rows,
             },
             indent=2,
         )

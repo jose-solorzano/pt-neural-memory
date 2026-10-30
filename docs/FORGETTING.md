@@ -40,7 +40,8 @@ data, 320 points total) removes the forgetting ($\text{BWT} = -0.025$), while th
 two parameter-space defences do not reliably help: EWC and SI beat plain
 fine-tuning on only 3 of 5 seeds, and their mean gain comes from the one seed
 where fine-tuning diverged worst. Joint training on all data seen so far is the
-ceiling at $R^2 = 0.972$.
+continual-protocol ceiling at $R^2 = 0.972$; a from-scratch MLP on the pooled
+data is higher still (§4.4).
 
 That is the useful result for this repository: **under a shift of the input
 distribution with a shared target, remembering is a data problem, not a
@@ -565,7 +566,7 @@ in state and data rather than in a penalty term.
 | stored pairs | 0 | 5,120 |
 | per-part fitting | 300 Adam steps | closed form, 33 cell updates per pair |
 | probes per query | one forward pass | 3 cells |
-| fit seconds (seed 0, 4 threads) | 3.4 | 3.2 |
+| fit seconds (seed 0, 4 threads) | 3.4 | 3.3 |
 
 The memory is about 3,400× the MLP's state, and about 440× the 140 KiB the raw
 pairs would occupy. The bill is the dense covariance: $71^2$ numbers for each of
@@ -573,6 +574,17 @@ pairs would occupy. The bill is the dense covariance: $71^2$ numbers for each of
 The state and probe counts follow from the configuration; the fit seconds are
 medians of three fresh fits, and both they and the microsecond figures are
 wall-clock on this checkout (four threads) and will vary.
+
+**From-scratch reference.** Pooling all 5,120 pairs and training the same MLP
+from scratch (Adam, lr $10^{-3}$, batch 128) gives ACC 0.601 after 300 steps
+(0.35 s), 0.859 after 1,000 (1.15 s), 0.949 after 3,000 (3.5 s), 0.975 after
+8,000 (9.3 s), and 0.984 after 16,000 (18.6 s). The addressed memory reaches
+0.948 in 3.3 s: at equal time the two are level, while a longer offline fit is
+more accurate and about 3,400× smaller. The offline MLP is not a continual
+learner — it needs all the data and a fresh optimizer run — so this prices the
+memory's incremental, gradient-free mode; it is not a claim that the memory
+beats offline training on accuracy. The `joint` row is the ceiling of the
+continual protocol, not the offline ceiling.
 
 **Size.** One axis moves capacity, locality and interference together:
 

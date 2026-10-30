@@ -507,7 +507,7 @@ Five-seed means, mean ± standard deviation:
 | EWC | −0.630 ± 0.802 | −1.656 ± 0.900 |
 | SI | −0.498 ± 0.707 | −1.505 ± 0.798 |
 | replay, 32 samples/part | 0.848 ± 0.033 | −0.025 ± 0.030 |
-| joint training (ceiling) | 0.972 ± 0.009 | +0.020 ± 0.003 |
+| joint training (continual ceiling) | 0.972 ± 0.009 | +0.020 ± 0.003 |
 | **addressed memory** | **0.954 ± 0.008** | **−0.006 ± 0.005** |
 
 The addressed memory stores every training pair and takes no gradient step. Its
@@ -522,7 +522,7 @@ Full matrices and sweeps: [docs/FORGETTING.md](https://github.com/jose-solorzano
 
 The memory has no optimizer and no backward pass: fitting is a sequence of
 closed-form stores. On the ten-part stream (5,120 training pairs), one fit takes
-about **3.2 s** on four CPU threads — about as long as 300-step fine-tuning or
+about **3.3 s** on four CPU threads — about as long as 300-step fine-tuning or
 replay, and roughly 2.5–2.9× faster than EWC/SI and the 800-step joint
 reference. The price is state: 60 MiB versus 18 KiB.
 
@@ -533,11 +533,11 @@ python -m pt_neural_memory.benchmarks.training_cost
 | method | fit (s) | per part (ms) | training work | model state |
 |---|---:|---:|---|---:|
 | naive fine-tuning | 3.4 | 340 | 3,000 Adam steps | 18 KiB |
-| EWC | 8.1 | 810 | 3,000 steps + Fisher anchors | 18 KiB + anchors |
-| SI | 8.8 | 880 | 3,000 steps + path integral | 18 KiB + anchors |
-| replay | 3.5 | 350 | 3,000 steps, 32 samples/part | 18 KiB + 9 KiB |
-| joint | 9.2 | 920 | 8,000 steps (larger budget) | 18 KiB + 140 KiB |
-| **addressed** | **3.2** | **320** | **5,120 stores × 33 cells** | **60 MiB** |
+| EWC | 8.7 | 870 | 3,000 steps + Fisher anchors | 18 KiB + anchors |
+| SI | 9.3 | 930 | 3,000 steps + path integral | 18 KiB + anchors |
+| replay | 3.6 | 360 | 3,000 steps, 32 samples/part | 18 KiB + 9 KiB |
+| joint | 9.5 | 950 | 8,000 steps (larger budget) | 18 KiB + 140 KiB |
+| **addressed** | **3.3** | **330** | **5,120 stores × 33 cells** | **60 MiB** |
 
 Conditions: CPU, float32, four threads, seed 0, median of three fresh fits;
 data generation, model construction and the 10 × 10 evaluation are excluded.
@@ -554,6 +554,33 @@ on one thread the addressed fit is ~4.5 s versus ~3.1 s for naive, because the
 per-block work parallelizes; the table uses the benchmark's four-thread setting.
 EWC and SI pay for Fisher/path-integral bookkeeping, and joint gets a larger
 budget, so its time is a reference rather than an equal-budget comparison.
+
+#### From-scratch MLP
+
+The table above is the continual-learning protocol, not a from-scratch fit. Pool
+all 5,120 training pairs, shuffle them, and train the same 2 × 64 MLP once from
+random initialisation (Adam, lr 1e-3, batch 128, no task boundaries):
+
+| steps | fit (s) | ACC |
+|---:|---:|---:|
+| 300 | 0.4 | 0.601 |
+| 1,000 | 1.2 | 0.859 |
+| 3,000 | 3.5 | **0.949** |
+| 8,000 | 9.3 | 0.975 |
+| 16,000 | 18.6 | 0.984 |
+| **addressed memory** | **3.3** | **0.948** |
+
+For about the same fit time, the 3,000-step MLP reaches the same seed-0 accuracy
+as the memory. A longer-trained MLP beats it — 0.975 at 8,000 steps, 0.984 at
+16,000 — with 18 KiB of weights instead of 60 MiB. The memory is not an
+accuracy-per-byte win against offline training.
+
+What it buys is a different mode of operation: the from-scratch MLP sees all the
+pairs at once and needs a fresh optimizer run; in a continual stream, retaining
+and retraining on the growing pool is the `joint` baseline. The memory stores
+each pair once, takes no gradient step, and is immediately queryable. The
+`joint` row is the ceiling within the continual protocol, not the offline
+ceiling; the from-scratch MLP is the offline oracle.
 
 ## Limitations
 

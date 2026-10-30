@@ -11,8 +11,8 @@ The modules are runnable with ``python -m``:
 * ``capacity_bench`` -- one cell versus a table at equal exactness.
 * ``forgetting_bench`` -- ten-part regression stream, MLP baselines,
   replay and the addressed memory.
-* ``training_cost`` -- wall-clock fit time for every method on the ten-part
-  stream.
+* ``training_cost`` -- wall-clock fit time for every method, plus a from-scratch
+  MLP budget curve.
 * ``export_forgetting`` -- rebuild the published Hugging Face CSV dataset
   (requires the ``export``/``hub`` extras).
 """
