@@ -44,7 +44,7 @@ from pt_neural_memory.memory_sizing import (
 try:
     __version__ = version("pt-neural-memory")
 except PackageNotFoundError:  # running from a source tree without an install
-    __version__ = "0.1.0"
+    __version__ = "0.1.1"
 
 __all__ = [
     "ADMISSIBLE_WRITERS_2PCT",

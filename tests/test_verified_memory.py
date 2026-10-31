@@ -177,6 +177,18 @@ def test_cell_read_aggregation():
     assert torch.equal(read.mean(), torch.tensor([[1.5]]))
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_verified_read_runs_on_cuda():
+    """The score buffer must live on the query's device."""
+    device = torch.device("cuda")
+    memory = make_memory(write_radius=1).to(device)
+    keys = torch.randn(8, KEY_DIM, device=device, dtype=torch.float64)
+    values = torch.randn(8, VALUE_DIM, device=device, dtype=torch.float64)
+    memory.store(keys, values)
+    assert memory(keys).device.type == "cuda"
+    assert memory.read_ball(keys).best().device.type == "cuda"
+
+
 def test_rejects_invalid_arguments():
     with pytest.raises(ValueError):
         make_memory(read_radius=N_BITS + 1)

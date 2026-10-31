@@ -10,8 +10,8 @@ authors:
   - family-names: Solorzano
     given-names: Jose
     email: jose.h.solorzano@gmail.com
-version: 0.1.0
-date-released: 2026-10-29
+version: 0.1.1
+date-released: 2026-10-31
 license: MIT
 repository-code: "https://github.com/jose-solorzano/pt-neural-memory"
 keywords:

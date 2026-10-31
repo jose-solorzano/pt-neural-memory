@@ -105,21 +105,21 @@ class RandomFeatureMap(nn.Module):
         offset: torch.Tensor | None = None
         if kind == "rff":
             weights = torch.randn(
-                width, input_dim, generator=generator, dtype=torch.float32
+                width, input_dim, generator=generator, dtype=self.dtype
             ) / scale
             offset = (
-                torch.rand(width, generator=generator, dtype=torch.float32)
+                torch.rand(width, generator=generator, dtype=self.dtype)
                 * 2.0
                 * math.pi
             )
         elif kind == "relu":
             weights = (
-                torch.randn(width, input_dim, generator=generator, dtype=torch.float32)
+                torch.randn(width, input_dim, generator=generator, dtype=self.dtype)
                 * scale
                 / input_dim**0.5
             )
             offset = (
-                torch.randn(width, generator=generator, dtype=torch.float32) * scale
+                torch.randn(width, generator=generator, dtype=self.dtype) * scale
             )
         self.register_buffer("weights", weights)
         self.register_buffer("offset", offset)
@@ -141,7 +141,9 @@ class RandomFeatureMap(nn.Module):
             else:
                 parts.append(norm * torch.relu(projection))
         if self.use_bias:
-            parts.append(torch.ones(state.shape[0], 1, dtype=state.dtype))
+            parts.append(
+                torch.ones(state.shape[0], 1, dtype=state.dtype, device=state.device)
+            )
         if self.use_raw:
             parts.append(state)
         return torch.cat(parts, dim=1)

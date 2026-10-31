@@ -153,6 +153,45 @@ def test_store_is_no_grad_by_default_and_can_keep_the_graph():
     assert torch.isfinite(inputs.grad).all()
 
 
+@pytest.mark.parametrize("kind", ["rff", "relu"])
+def test_float64_dtype_is_preserved(kind: str):
+    """The feature map must use the requested state dtype, not float32."""
+    generator = torch.Generator().manual_seed(0)
+    inputs = torch.randn(8, 4, generator=generator, dtype=torch.float64)
+    targets = torch.randn(8, 1, generator=generator, dtype=torch.float64)
+    model = AddressedRegressor(
+        4,
+        kind=kind,
+        width=8,
+        n_bits=3,
+        n_blocks=1,
+        dtype=torch.float64,
+        rr_lambda=1e-3,
+    )
+    assert model.features(inputs).dtype == torch.float64
+    model.store(inputs, targets)
+    assert model(inputs).dtype == torch.float64
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+@pytest.mark.parametrize("read", ["own", "verified"])
+def test_regressor_runs_on_cuda(read: str):
+    device = torch.device("cuda")
+    model = AddressedRegressor(
+        4,
+        kind="rff",
+        width=8,
+        n_bits=4,
+        n_blocks=1,
+        read=read,
+        seed=0,
+    ).to(device)
+    inputs = torch.randn(8, 4, device=device)
+    targets = torch.randn(8, 1, device=device)
+    model.store(inputs, targets)
+    assert model(inputs).device.type == "cuda"
+
+
 def test_store_and_read_shape_errors_raise():
     model = AddressedRegressor(4, kind="rff", width=8, n_bits=3, n_blocks=1)
     with pytest.raises(ValueError, match="targets must have shape"):

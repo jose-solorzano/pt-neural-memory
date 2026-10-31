@@ -413,6 +413,7 @@ class VerifiedMemory(AddressedMemory):
             (batch, self.n_blocks),
             float("inf"),
             dtype=self.cells.covariance.dtype,
+            device=key.device,
         )
         best_index = torch.zeros(
             (batch, self.n_blocks), dtype=torch.int64, device=key.device

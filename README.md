@@ -647,7 +647,7 @@ docs/                     design reports and full measurement protocols
   author  = {Jose Solorzano},
   title   = {pt-neural-memory: addressed RLS/Kalman-cell associative memory and nonlinear regressor},
   year    = {2026},
-  version = {0.1.0},
+  version = {0.1.1},
   url     = {https://github.com/jose-solorzano/pt-neural-memory},
   license = {MIT}
 }
